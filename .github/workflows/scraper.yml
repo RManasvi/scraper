@@ -23,6 +23,8 @@ jobs:
     name: Run Airline Scrapers
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -71,3 +73,13 @@ jobs:
           path: .dist/logs/*.json
           retention-days: 30
           if-no-files-found: warn
+
+      - name: Commit and Push changes
+        if: always()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          # Force add because these folders might be in .gitignore
+          git add -f akasaair/*.json spicejet/*.json airindiaexpress/*.json .dist/logs/*.json || true
+          git commit -m "chore: save latest scraped data [skip ci]" || echo "No changes to commit"
+          git push
