@@ -1,0 +1,70 @@
+{
+  "run_id": "run_20260905_141758",
+  "timestamp": "2026-09-05T14:17:58.837470",
+  "dry_run": false,
+  "scrapers": [
+    {
+      "scraper": "akasaair",
+      "start_time": "2026-09-05T14:17:58.837476",
+      "success": true,
+      "duration_seconds": 85.87,
+      "exit_code": 0,
+      "output_file": "akasaair/akasaair_top_24_routes_20260905_141924.json",
+      "metrics": {
+        "total_records": 120,
+        "null_rate": 0.452
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: JSON parse error: Expecting value: line 1 column 1 (char 0)",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    },
+    {
+      "scraper": "spicejet",
+      "start_time": "2026-09-05T14:19:26.115893",
+      "success": true,
+      "duration_seconds": 2414.76,
+      "exit_code": 0,
+      "output_file": "spicejet/spicejet_top_24_routes_20260905_145940.json",
+      "metrics": {
+        "total_records": 136,
+        "null_rate": 0.332
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: JSON parse error: Expecting value: line 1 column 1 (char 0)",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    },
+    {
+      "scraper": "airindiaexpress",
+      "start_time": "2026-09-05T14:59:41.876898",
+      "success": true,
+      "duration_seconds": 290.31,
+      "exit_code": 0,
+      "output_file": "airindiaexpress/airindiaexpress_top_24_routes_20260905_150432.json",
+      "metrics": {
+        "total_records": 134,
+        "null_rate": 0.39
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "No error details present; likely a successful run",
+        "suggested_action": "ignore_transient",
+        "confidence": 0.92,
+        "diagnosis_source": "groq"
+      },
+      "orchestrator_action": "ignored_transient",
+      "retried": false
+    }
+  ]
+}
