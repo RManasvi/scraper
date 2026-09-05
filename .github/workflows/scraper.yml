@@ -1,0 +1,73 @@
+name: VAYUSETU Daily Scraper
+
+on:
+  schedule:
+    # Runs every day at 02:30 UTC (08:00 IST)
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+    inputs:
+      scraper:
+        description: "Which scraper to run (leave blank for all)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - akasaair
+          - spicejet
+          - airindiaexpress
+
+jobs:
+  scrape:
+    name: Run Airline Scrapers
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Run orchestrator
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "${{ github.event.inputs.scraper }}" ]; then
+            python orchestrator.py --only ${{ github.event.inputs.scraper }}
+          else
+            python orchestrator.py
+          fi
+
+      - name: Upload scraper output (JSON data)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-output-${{ github.run_id }}
+          path: |
+            akasaair/*.json
+            spicejet/*.json
+            airindiaexpress/*.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload orchestrator run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-${{ github.run_id }}
+          path: .dist/logs/*.json
+          retention-days: 30
+          if-no-files-found: warn
