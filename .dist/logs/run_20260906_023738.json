@@ -1,0 +1,70 @@
+{
+  "run_id": "run_20260906_023738",
+  "timestamp": "2026-09-06T02:37:38.386773",
+  "dry_run": false,
+  "scrapers": [
+    {
+      "scraper": "akasaair",
+      "start_time": "2026-09-06T02:37:38.386778",
+      "success": true,
+      "duration_seconds": 84.29,
+      "exit_code": 0,
+      "output_file": "akasaair/akasaair_top_24_routes_20260906_023902.json",
+      "metrics": {
+        "total_records": 120,
+        "null_rate": 0.452
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "Robots.txt disallows access to the target URLs",
+        "suggested_action": "alert_human",
+        "confidence": 0.86,
+        "diagnosis_source": "groq"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    },
+    {
+      "scraper": "spicejet",
+      "start_time": "2026-09-06T02:39:04.062341",
+      "success": true,
+      "duration_seconds": 2444.46,
+      "exit_code": 0,
+      "output_file": "spicejet/spicejet_top_24_routes_20260906_031948.json",
+      "metrics": {
+        "total_records": 138,
+        "null_rate": 0.335
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: JSON parse error: Expecting value: line 1 column 1 (char 0)",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    },
+    {
+      "scraper": "airindiaexpress",
+      "start_time": "2026-09-06T03:19:49.741986",
+      "success": true,
+      "duration_seconds": 275.45,
+      "exit_code": 0,
+      "output_file": "airindiaexpress/airindiaexpress_top_24_routes_20260906_032425.json",
+      "metrics": {
+        "total_records": 133,
+        "null_rate": 0.393
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: JSON parse error: Expecting value: line 1 column 1 (char 0)",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    }
+  ]
+}
