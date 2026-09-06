@@ -141,7 +141,7 @@ def diagnose_failure(
         from groq import Groq  # lazy import — keeps module importable without Groq installed
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama3-70b-8192",
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},

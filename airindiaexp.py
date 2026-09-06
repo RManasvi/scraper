@@ -1959,13 +1959,14 @@ from playwright.async_api import async_playwright
 
 from common.routes import CITY_TO_IATA, PRIORITY_ROUTES
 from common.output import write_output
+from common.stealth import is_ci, wait_for_ci
 
 ADVANCE_WINDOWS = [1, 7, 15, 30, 45]
 USER_AGENT = "VAYUSETU-Bot"
 BASE_URL = "https://flights.airindiaexpress.com"
 ROBOTS_URL = f"{BASE_URL}/robots.txt"
 SITEMAP_URL = f"{BASE_URL}/sitemap_index.xml"
-OUTPUT_DIR = Path("airindiaexpress")
+OUTPUT_DIR = Path(__file__).parent / "airindiaexpress"
 OUTPUT_DIR.mkdir(exist_ok=True)
 SS_DIR = OUTPUT_DIR / "ss"
 SS_DIR.mkdir(exist_ok=True)
@@ -2152,7 +2153,12 @@ def normalized_record(route_id, passengers, origin, destination, travel_date, ad
 async def run_batch_scrape(headless=True):
     today = datetime.now()
     windows = [(days, (today + timedelta(days=days)).strftime("%Y-%m-%d")) for days in ADVANCE_WINDOWS]
+    target_dates = [date for _, date in windows]
     records = []
+    max_route_retries = 1 if is_ci() else 0
+    if is_ci():
+        print("[CI] Running in GitHub Actions — route-retry on not_published enabled.")
+
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=headless)
         page = await browser.new_page(user_agent=USER_AGENT, viewport={"width": 1366, "height": 768})
@@ -2161,26 +2167,55 @@ async def run_batch_scrape(headless=True):
             destination = CITY_TO_IATA[destination_city]
             route_id = f"{origin_city}-{destination_city}"
             print(f"[{index}/{len(PRIORITY_ROUTES)}] {route_id}")
-            target_dates = [date for _, date in windows]
-            try:
-                fares, schedules, source_url, error = await collect_route(
-                    page, origin_city, destination_city, target_dates
-                )
-            except Exception as exc:
-                fares, schedules, source_url, error = {}, [], route_url(origin_city, destination_city), str(exc)
-            for advance_days, travel_date in windows:
-                fare = fares.get(travel_date)
-                if schedules and fare is not None:
-                    for schedule in schedules:
-                        records.append(normalized_record(
+
+            route_records = []
+            for attempt in range(max_route_retries + 1):
+                if attempt > 0:
+                    print(f"  [CI] Retrying {route_id} (attempt {attempt}/{max_route_retries})...")
+                    await wait_for_ci(5)
+
+                try:
+                    fares, schedules, source_url, error = await collect_route(
+                        page, origin_city, destination_city, target_dates
+                    )
+                except Exception as exc:
+                    fares, schedules, source_url, error = {}, [], route_url(origin_city, destination_city), str(exc)
+
+                route_records = []
+                unpublished_count = 0
+                for advance_days, travel_date in windows:
+                    fare = fares.get(travel_date)
+                    if schedules and fare is not None:
+                        for schedule in schedules:
+                            route_records.append(normalized_record(
+                                route_id, passengers, origin, destination, travel_date, advance_days,
+                                source_url, fare, schedule, error,
+                            ))
+                    else:
+                        route_records.append(normalized_record(
                             route_id, passengers, origin, destination, travel_date, advance_days,
-                            source_url, fare, schedule, error,
+                            source_url, fare, None, error,
                         ))
-                else:
-                    records.append(normalized_record(
-                        route_id, passengers, origin, destination, travel_date, advance_days,
-                        source_url, fare, None, error,
-                    ))
+                        if fare is None:
+                            unpublished_count += 1
+
+                all_unpublished = unpublished_count == len(windows)
+                if not all_unpublished or attempt >= max_route_retries:
+                    if all_unpublished and is_ci():
+                        print(f"  [CI] {route_id} all-not_published after {max_route_retries} retries — saving debug artifacts.")
+                        try:
+                            safe_id = route_id.replace("/", "-")
+                            ss_path = SS_DIR / f"ci_failure_{safe_id}.png"
+                            html_path = SS_DIR / f"ci_failure_{safe_id}.html"
+                            await page.screenshot(path=str(ss_path), full_page=True)
+                            with open(html_path, "w", encoding="utf-8") as fh:
+                                fh.write(await page.content())
+                            print(f"  [CI] Debug artifacts: {ss_path}")
+                        except Exception as dump_err:
+                            print(f"  [CI] Could not save debug artifacts: {dump_err}")
+                    break
+
+            records.extend(route_records)
             await asyncio.sleep(3)
         await browser.close()
 

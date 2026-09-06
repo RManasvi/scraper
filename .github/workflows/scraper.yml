@@ -1,9 +1,15 @@
 name: VAYUSETU Daily Scraper
 
 on:
+  push:
+    branches:
+      - main
+      - master
   schedule:
-    # Runs every day at 02:30 UTC (08:00 IST)
-    - cron: "30 2 * * *"
+    # 4x daily at IST 8:00am / 2:00pm / 8:00pm / 2:00am  (IST = UTC+5:30)
+    # 08:00 IST = 02:30 UTC | 14:00 IST = 08:30 UTC
+    # 20:00 IST = 14:30 UTC | 02:00 IST = 20:30 UTC (prev day)
+    - cron: "30 2,8,14,20 * * *"
   workflow_dispatch:
     # Allow manual trigger from GitHub Actions UI
     inputs:
@@ -17,12 +23,13 @@ on:
           - akasaair
           - spicejet
           - airindiaexpress
+          - yatra
 
 jobs:
   scrape:
     name: Run Airline Scrapers
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: write
 
@@ -40,12 +47,15 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Install Playwright browsers
-        run: playwright install chromium --with-deps
+        run: |
+          playwright install chromium --with-deps
+          playwright install firefox --with-deps
 
       - name: Run orchestrator
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_ACTIONS: "true"
         run: |
           if [ -n "${{ github.event.inputs.scraper }}" ]; then
             python orchestrator.py --only ${{ github.event.inputs.scraper }}
@@ -62,6 +72,7 @@ jobs:
             akasaair/*.json
             spicejet/*.json
             airindiaexpress/*.json
+            yatra/*.json
           retention-days: 30
           if-no-files-found: warn
 
@@ -80,6 +91,6 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           # Force add because these folders might be in .gitignore
-          git add -f akasaair/*.json spicejet/*.json airindiaexpress/*.json .dist/logs/*.json || true
+          git add -f akasaair/*.json spicejet/*.json airindiaexpress/*.json yatra/*.json .dist/logs/*.json || true
           git commit -m "chore: save latest scraped data [skip ci]" || echo "No changes to commit"
           git push

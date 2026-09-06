@@ -31,3 +31,17 @@ async def apply_stealth(page: Page) -> None:
         # If playwright_stealth is not installed, skip silently.
         # The scraper will still function; stealth is best-effort.
         print("  [!] playwright_stealth not installed — running without stealth")
+
+
+import os
+import asyncio
+
+def is_ci() -> bool:
+    """Return True if running in GitHub Actions CI."""
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+async def wait_for_ci(seconds: int = 5) -> None:
+    """Wait for a given number of seconds if running in CI."""
+    if is_ci():
+        print(f"  [CI] Waiting {seconds}s for page to settle...")
+        await asyncio.sleep(seconds)

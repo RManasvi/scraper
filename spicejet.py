@@ -10,7 +10,7 @@ from playwright.async_api import async_playwright
 
 from common.routes import CITY_TO_IATA, PRIORITY_ROUTES
 from common.robots import robots_allowed as _robots_allowed_base
-from common.stealth import apply_stealth, LAUNCH_ARGS
+from common.stealth import apply_stealth, LAUNCH_ARGS, is_ci, wait_for_ci
 from common.utils import elapsed_minutes
 from common.sanitize import sanitize_record
 from common.output import write_output
@@ -28,7 +28,7 @@ MAX_CONSECUTIVE_FAILURES = 5
 MAX_RETRIES_PER_DATE = 4
 RETRY_BACKOFF_BASE = 20
 
-OUTPUT_DIR = Path("spicejet")
+OUTPUT_DIR = Path(__file__).parent / "spicejet"
 OUTPUT_DIR.mkdir(exist_ok=True)
 SS_DIR = OUTPUT_DIR / "ss"
 SS_DIR.mkdir(exist_ok=True)
@@ -378,6 +378,8 @@ async def run_batch_scrape(headless: bool = True):
     normalized_all = []
     total = len(ROUTES) * len(ADVANCE_WINDOWS)
     print(f"Planned requests: {total} ({len(ROUTES)} routes x {len(ADVANCE_WINDOWS)} date windows)")
+    if is_ci():
+        print("[CI] Running in GitHub Actions — extended timeouts and route-retry enabled.")
 
     homepage = "https://www.spicejet.com/"
     if not robots_allowed(homepage):
@@ -385,6 +387,7 @@ async def run_batch_scrape(headless: bool = True):
         return []
 
     count = 0
+    max_route_retries = 1 if is_ci() else 0
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -399,15 +402,64 @@ async def run_batch_scrape(headless: bool = True):
             ]
             print(f"[{count + 1}-{count + len(windows)}/{total}] {route_id} | five windows ...")
             date_list = [d for _, d in windows]
-            window_results, window_outcomes = await scrape_route(origin, dest, date_list, browser, headless=headless)
 
-            for adv, travel_date in windows:
-                count += 1
-                entry = window_results.get(travel_date, {})
-                outcome = window_outcomes.get(travel_date, "ok")
-                normalized_all.extend(
-                    normalize_response(entry, origin, dest, travel_date, adv, route_id, pax, outcome)
+            route_records = []
+            for attempt in range(max_route_retries + 1):
+                if attempt > 0:
+                    print(f"  [CI] Retrying {route_id} (attempt {attempt}/{max_route_retries})...")
+                    await wait_for_ci(5)
+
+                window_results, window_outcomes = await scrape_route(
+                    origin, dest, date_list, browser, headless=headless
                 )
+
+                route_records = []
+                all_failed = True
+                for adv, travel_date in windows:
+                    entry = window_results.get(travel_date, {})
+                    outcome = window_outcomes.get(travel_date, "ok")
+                    recs = normalize_response(entry, origin, dest, travel_date, adv, route_id, pax, outcome)
+                    got_data = bool(entry.get("availability") or entry.get("lowfare"))
+                    if got_data or outcome == "genuine_no_flights":
+                        all_failed = False
+                    route_records.append((adv, travel_date, entry, outcome, recs))
+
+                if not all_failed or attempt >= max_route_retries:
+                    if all_failed and is_ci():
+                        print(f"  [CI] {route_id} failed after {max_route_retries} retries — saving debug artifacts.")
+                        # Save a fresh page screenshot for the failing route
+                        try:
+                            ctx = await browser.new_context(
+                                user_agent=(
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    "Chrome/151.0.0.0 Safari/537.36"
+                                ),
+                                viewport={"width": 1366, "height": 768},
+                            )
+                            pg = await ctx.new_page()
+                            await pg.goto(
+                                f"https://www.spicejet.com/search?from={origin}&to={dest}"
+                                f"&tripType=1&departure={date_list[0]}&adult=1",
+                                wait_until="domcontentloaded",
+                                timeout=60000,
+                            )
+                            await pg.wait_for_timeout(5000)
+                            safe_id = route_id.replace("/", "-")
+                            ss_path = SS_DIR / f"ci_failure_{safe_id}.png"
+                            html_path = SS_DIR / f"ci_failure_{safe_id}.html"
+                            await pg.screenshot(path=str(ss_path), full_page=True)
+                            with open(html_path, "w", encoding="utf-8") as fh:
+                                fh.write(await pg.content())
+                            print(f"  [CI] Debug artifacts: {ss_path}")
+                            await ctx.close()
+                        except Exception as dump_err:
+                            print(f"  [CI] Could not save debug artifacts: {dump_err}")
+                    break
+
+            for adv, travel_date, entry, outcome, recs in route_records:
+                count += 1
+                normalized_all.extend(recs)
                 status = "OK" if entry.get("availability") or entry.get("lowfare") else outcome
                 print(f"  [{status}] T+{adv} | {travel_date}")
 

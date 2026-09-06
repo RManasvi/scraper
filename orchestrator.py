@@ -71,6 +71,7 @@ SCRAPERS: dict[str, str] = {
     "akasaair": "akasaair.py",
     "spicejet": "spicejet.py",
     "airindiaexpress": "airindiaexp.py",
+    "yatra": "yatra.py",
 }
 
 # Null-rate threshold above which diagnosis is triggered even on "success"
@@ -88,9 +89,16 @@ _consecutive_failures: dict[str, int] = {name: 0 for name in SCRAPERS}
 # ---------------------------------------------------------------------------
 
 def find_newest_output(airline_slug: str) -> Optional[Path]:
-    """Find the most recently modified JSON output file for the given airline."""
-    pattern = os.path.join(airline_slug, f"{airline_slug}_top_24_routes_*.json")
-    files = glob.glob(pattern)
+    """Find the most recently modified JSON output file for the given airline.
+
+    Matches both timestamped names (produced by new scrapers):
+        {slug}_top_24_routes_YYYYMMDD_HHMMSS.json
+    and legacy flat names still present from older runs:
+        {slug}_top_24_routes.json
+    """
+    base_dir = Path(__file__).parent / airline_slug
+    # Collect both naming patterns; pick the most recently modified file.
+    files = glob.glob(os.path.join(str(base_dir), f"{airline_slug}_top_24_routes*.json"))
     if not files:
         return None
     files.sort(key=os.path.getmtime)
@@ -107,19 +115,27 @@ def compute_metrics(json_path: Path) -> dict:
 
     routes = data.get("routes", [])
     if not routes:
-        return {"total_records": 0, "null_rate": 0.0}
+        return {"total_records": 0, "null_rate": 0.0, "null_count": 0, "no_flights_count": 0}
 
     total_fields = 0
     null_fields = 0
+    no_flights_count = 0
     for record in routes:
+        status = record.get("availability_status", "")
+        if status in ("no_flights", "not_collected", "not_published"):
+            no_flights_count += 1
         for val in record.values():
             total_fields += 1
             if val is None or val == "N/A" or val == 0:
                 null_fields += 1
 
+    null_rate = round(null_fields / total_fields, 3) if total_fields else 0.0
     return {
         "total_records": len(routes),
-        "null_rate": round(null_fields / total_fields, 3) if total_fields else 0.0,
+        "null_rate": null_rate,
+        "null_count": null_fields,
+        "no_flights_count": no_flights_count,
+        "no_flights_rate": round(no_flights_count / len(routes), 3) if routes else 0.0,
     }
 
 
@@ -211,6 +227,12 @@ def run_scraper(
             result["success"] = proc.returncode == 0
             if not result["success"]:
                 error_trace = stdout_buf[-2000:]
+                
+            if name == "akasaair":
+                retries = stdout_buf.count("Retrying (attempt")
+                if retries > 0:
+                    result["akasaair_route_retries"] = retries
+                    logger.info("[%s] Logged %d route retries during execution.", name, retries)
         except Exception as exc:
             error_trace = str(exc)
             result["exit_code"] = -1
@@ -236,7 +258,9 @@ def run_scraper(
         null_rate = metrics.get("null_rate", 0.0)
         print(
             f"[{name}] Metrics: {metrics.get('total_records', 0)} records, "
-            f"{null_rate*100:.1f}% null rate"
+            f"{null_rate*100:.1f}% null rate, "
+            f"{metrics.get('no_flights_count', 0)} no_flights records "
+            f"({metrics.get('no_flights_rate', 0.0)*100:.1f}%)"
         )
     else:
         print(f"[{name}] No output file found.")

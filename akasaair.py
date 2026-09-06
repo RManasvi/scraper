@@ -11,7 +11,7 @@ from playwright.async_api import async_playwright
 
 from common.routes import CITY_TO_IATA, PRIORITY_ROUTES
 from common.robots import robots_allowed as _robots_allowed_base
-from common.stealth import apply_stealth, LAUNCH_ARGS
+from common.stealth import apply_stealth, LAUNCH_ARGS, is_ci, wait_for_ci
 from common.utils import elapsed_minutes
 from common.output import write_output
 
@@ -22,7 +22,7 @@ from common.output import write_output
 
 ADVANCE_WINDOWS = [1, 7, 15, 30, 45]
 
-OUTPUT_DIR = Path("akasaair")
+OUTPUT_DIR = Path(__file__).parent / "akasaair"
 OUTPUT_DIR.mkdir(exist_ok=True)
 SS_DIR = OUTPUT_DIR / "ss"
 SS_DIR.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ ROUTES_WITH_SLUGS = build_routes_from_slugs()
 # ---------------------------
 async def scrape_route(origin: str, dest: str, travel_date: str,
                         origin_slug: str = None, dest_slug: str = None,
-                        headless: bool = True, additional_dates=None):
+                        headless: bool = True, additional_dates=None, route_id: str = None):
     """
     Loads Akasa's direct city-to-city page when slugs are available.
     Falls back to homepage + manual field-fill if no slug page exists.
@@ -129,6 +129,12 @@ async def scrape_route(origin: str, dest: str, travel_date: str,
             viewport={"width": 1366, "height": 768},
         )
         await apply_stealth(page)
+
+        timeout_ms = 60000 if is_ci() else 30000
+        page.set_default_timeout(timeout_ms)
+
+        if is_ci():
+            await wait_for_ci(8)
 
         async def set_requested_date(route, request):
             """Keep Akasa's own browser request, but set the requested window date."""
@@ -295,7 +301,14 @@ async def scrape_route(origin: str, dest: str, travel_date: str,
 
         if not requested_availability_captured():
             try:
-                await page.screenshot(path=str(SS_DIR / "last_run_debug.png"), full_page=True)
+                if is_ci() and route_id:
+                    ss_path = SS_DIR / f"ci_failure_{route_id}.png"
+                    html_path = SS_DIR / f"ci_failure_{route_id}.html"
+                    await page.screenshot(path=str(ss_path), full_page=True)
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(await page.content())
+                else:
+                    await page.screenshot(path=str(SS_DIR / "last_run_debug.png"), full_page=True)
             except Exception:
                 pass
 
@@ -605,23 +618,43 @@ async def run_batch_scrape(headless: bool = True):
         ]
         first_adv, first_date = windows[0]
         print(f"[{count + 1}-{count + len(windows)}/{total}] {route_id} | five windows ...")
-        result = await scrape_route(
-            origin,
-            dest,
-            first_date,
-            o_slug,
-            d_slug,
-            headless=headless,
-            additional_dates=[date for _, date in windows[1:]],
-        )
-        window_responses = (result or {}).get("window_responses", {})
-
-        for adv, travel_date in windows:
-            count += 1
-            window_raw = window_responses.get(travel_date, {})
-            normalized_all.extend(
-                normalize_response(window_raw, origin, dest, travel_date, adv, route_id, pax)
+        max_retries = 1 if is_ci() else 0
+        route_records = []
+        
+        for attempt in range(max_retries + 1):
+            route_records = []
+            result = await scrape_route(
+                origin,
+                dest,
+                first_date,
+                o_slug,
+                d_slug,
+                headless=headless,
+                additional_dates=[date for _, date in windows[1:]],
+                route_id=route_id,
             )
+            window_responses = (result or {}).get("window_responses", {})
+
+            has_null = False
+            for adv, travel_date in windows:
+                window_raw = window_responses.get(travel_date, {})
+                recs = normalize_response(window_raw, origin, dest, travel_date, adv, route_id, pax)
+                route_records.append((adv, travel_date, window_raw, recs))
+                if not recs or any(r.get("availability_status") in ("no_flights", "not_collected") for r in recs):
+                    has_null = True
+
+            if has_null and attempt < max_retries:
+                print(f"  [!] {route_id} returned null/no_flights. Retrying (attempt {attempt + 1}/{max_retries})...")
+                if is_ci():
+                    await wait_for_ci(5)
+            else:
+                if has_null and is_ci():
+                    print(f"  [!] {route_id} failed after {max_retries} retries.")
+                break
+
+        for adv, travel_date, window_raw, recs in route_records:
+            count += 1
+            normalized_all.extend(recs)
             status = "OK" if window_raw else "--"
             print(f"  [{status}] T+{adv} | {travel_date}")
 
