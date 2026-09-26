@@ -1,0 +1,92 @@
+{
+  "run_id": "run_20260926_075304",
+  "timestamp": "2026-09-26T07:53:04.083849",
+  "dry_run": false,
+  "scrapers": [
+    {
+      "scraper": "akasaair",
+      "start_time": "2026-09-26T07:53:04.083855",
+      "success": true,
+      "duration_seconds": 600.39,
+      "exit_code": 0,
+      "output_file": "/home/runner/work/scraper/scraper/akasaair/akasaair_top_24_routes_20260926_080304.json",
+      "metrics": {
+        "total_records": 120,
+        "null_rate": 0.452,
+        "null_count": 1680,
+        "no_flights_count": 120,
+        "no_flights_rate": 1.0
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: Error code: 400 - {'error': {'message': 'The model `llama3-70b-8192` has been de",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false,
+      "akasaair_route_retries": 6
+    },
+    {
+      "scraper": "spicejet",
+      "start_time": "2026-09-26T08:03:04.855813",
+      "success": true,
+      "duration_seconds": 2426.44,
+      "exit_code": 0,
+      "output_file": "/home/runner/work/scraper/scraper/spicejet/spicejet_top_24_routes_20260926_084331.json",
+      "metrics": {
+        "total_records": 178,
+        "null_rate": 0.256,
+        "null_count": 1457,
+        "no_flights_count": 77,
+        "no_flights_rate": 0.433
+      },
+      "diagnosis": null,
+      "orchestrator_action": null,
+      "retried": false
+    },
+    {
+      "scraper": "airindiaexpress",
+      "start_time": "2026-09-26T08:43:31.302334",
+      "success": true,
+      "duration_seconds": 235.86,
+      "exit_code": 0,
+      "output_file": "/home/runner/work/scraper/scraper/airindiaexpress/airindiaexpress_top_24_routes_20260926_084727.json",
+      "metrics": {
+        "total_records": 134,
+        "null_rate": 0.39,
+        "null_count": 1723,
+        "no_flights_count": 73,
+        "no_flights_rate": 0.545
+      },
+      "diagnosis": {
+        "failure_class": "unknown",
+        "explanation": "LLM diagnosis unavailable: Error code: 400 - {'error': {'message': 'The model `llama3-70b-8192` has been de",
+        "suggested_action": "alert_human",
+        "confidence": 0.0,
+        "diagnosis_source": "fallback"
+      },
+      "orchestrator_action": "human_review_required",
+      "retried": false
+    },
+    {
+      "scraper": "yatra",
+      "start_time": "2026-09-26T08:47:27.303316",
+      "success": true,
+      "duration_seconds": 407.2,
+      "exit_code": 0,
+      "output_file": "/home/runner/work/scraper/scraper/yatra/yatra_top_24_routes_20260926_085414.json",
+      "metrics": {
+        "total_records": 509,
+        "null_rate": 0.257,
+        "null_count": 4708,
+        "no_flights_count": 0,
+        "no_flights_rate": 0.0
+      },
+      "diagnosis": null,
+      "orchestrator_action": null,
+      "retried": false
+    }
+  ]
+}
