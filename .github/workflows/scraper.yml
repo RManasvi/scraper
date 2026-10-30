@@ -1,96 +1,96 @@
-name: VAYUSETU Daily Scraper
+# name: VAYUSETU Daily Scraper
 
-on:
-  push:
-    branches:
-      - main
-      - master
-  schedule:
-    # 4x daily at IST 8:00am / 2:00pm / 8:00pm / 2:00am  (IST = UTC+5:30)
-    # 08:00 IST = 02:30 UTC | 14:00 IST = 08:30 UTC
-    # 20:00 IST = 14:30 UTC | 02:00 IST = 20:30 UTC (prev day)
-    - cron: "30 2,8,14,20 * * *"
-  workflow_dispatch:
-    # Allow manual trigger from GitHub Actions UI
-    inputs:
-      scraper:
-        description: "Which scraper to run (leave blank for all)"
-        required: false
-        default: ""
-        type: choice
-        options:
-          - ""
-          - akasaair
-          - spicejet
-          - airindiaexpress
-          - yatra
+# on:
+#   push:
+#     branches:
+#       - main
+#       - master
+#   schedule:
+#     # 4x daily at IST 8:00am / 2:00pm / 8:00pm / 2:00am  (IST = UTC+5:30)
+#     # 08:00 IST = 02:30 UTC | 14:00 IST = 08:30 UTC
+#     # 20:00 IST = 14:30 UTC | 02:00 IST = 20:30 UTC (prev day)
+#     - cron: "30 2,8,14,20 * * *"
+#   workflow_dispatch:
+#     # Allow manual trigger from GitHub Actions UI
+#     inputs:
+#       scraper:
+#         description: "Which scraper to run (leave blank for all)"
+#         required: false
+#         default: ""
+#         type: choice
+#         options:
+#           - ""
+#           - akasaair
+#           - spicejet
+#           - airindiaexpress
+#           - yatra
 
-jobs:
-  scrape:
-    name: Run Airline Scrapers
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    permissions:
-      contents: write
+# jobs:
+#   scrape:
+#     name: Run Airline Scrapers
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 120
+#     permissions:
+#       contents: write
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
+#       - name: Set up Python 3.11
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.11"
+#           cache: "pip"
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
+#       - name: Install Python dependencies
+#         run: pip install -r requirements.txt
 
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium --with-deps
-          playwright install firefox --with-deps
+#       - name: Install Playwright browsers
+#         run: |
+#           playwright install chromium --with-deps
+#           playwright install firefox --with-deps
 
-      - name: Run orchestrator
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          GITHUB_ACTIONS: "true"
-        run: |
-          if [ -n "${{ github.event.inputs.scraper }}" ]; then
-            python orchestrator.py --only ${{ github.event.inputs.scraper }}
-          else
-            python orchestrator.py
-          fi
+#       - name: Run orchestrator
+#         env:
+#           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+#           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+#           GITHUB_ACTIONS: "true"
+#         run: |
+#           if [ -n "${{ github.event.inputs.scraper }}" ]; then
+#             python orchestrator.py --only ${{ github.event.inputs.scraper }}
+#           else
+#             python orchestrator.py
+#           fi
 
-      - name: Upload scraper output (JSON data)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scraper-output-${{ github.run_id }}
-          path: |
-            akasaair/*.json
-            spicejet/*.json
-            airindiaexpress/*.json
-            yatra/*.json
-          retention-days: 30
-          if-no-files-found: warn
+#       - name: Upload scraper output (JSON data)
+#         if: always()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: scraper-output-${{ github.run_id }}
+#           path: |
+#             akasaair/*.json
+#             spicejet/*.json
+#             airindiaexpress/*.json
+#             yatra/*.json
+#           retention-days: 30
+#           if-no-files-found: warn
 
-      - name: Upload orchestrator run log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: run-log-${{ github.run_id }}
-          path: .dist/logs/*.json
-          retention-days: 30
-          if-no-files-found: warn
+#       - name: Upload orchestrator run log
+#         if: always()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: run-log-${{ github.run_id }}
+#           path: .dist/logs/*.json
+#           retention-days: 30
+#           if-no-files-found: warn
 
-      - name: Commit and Push changes
-        if: always()
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          # Force add because these folders might be in .gitignore
-          git add -f akasaair/*.json spicejet/*.json airindiaexpress/*.json yatra/*.json .dist/logs/*.json || true
-          git commit -m "chore: save latest scraped data [skip ci]" || echo "No changes to commit"
-          git push
+#       - name: Commit and Push changes
+#         if: always()
+#         run: |
+#           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+#           git config --local user.name "github-actions[bot]"
+#           # Force add because these folders might be in .gitignore
+#           git add -f akasaair/*.json spicejet/*.json airindiaexpress/*.json yatra/*.json .dist/logs/*.json || true
+#           git commit -m "chore: save latest scraped data [skip ci]" || echo "No changes to commit"
+#           git push
